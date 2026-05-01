@@ -139,7 +139,7 @@ async def main_async(args):
     connector = aiohttp.TCPConnector(limit=args.concurrency * 2,
                                      limit_per_host=args.concurrency,
                                      ttl_dns_cache=300)
-    headers = {"User-Agent": "idpro-esm3-ablation/0.1 (research; sahu lab)"}
+    headers = {"User-Agent": "idpro/0.1 (research; sahu lab)"}
 
     async def reporter(stop_event):
         """Periodic progress reporter — runs independently of task creation."""

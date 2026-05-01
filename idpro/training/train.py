@@ -429,11 +429,12 @@ def load_ckpt(model, optimizer, device, engine=None, current_stage=None):
             #     `nested_absmax`, `quant_state.bitsandbytes__nf4`) that the
             #     freshly-loaded model's state_dict() doesn't return until
             #     first forward.
-            #   - For S0 (structure_track=False): the saved ckpt lacks
+            #   - When structure_track=False: the saved ckpt lacks
             #     `_structure_encoder.*` keys (encode never instantiates that
             #     submodule).
-            #   - For S1: the 34 saved `_structure_encoder.*` keys in the
-            #     `module` dict (encoder.py leaves SE lazy at load time).
+            #   - When structure_track=True: the 34 saved `_structure_encoder.*`
+            #     keys in the `module` dict (encoder.py leaves SE lazy at load
+            #     time).
             _, client_state = engine.load_checkpoint(
                 str(CKPT_DIR), tag=path.name,
                 load_module_strict=False,
@@ -721,7 +722,7 @@ def train(args):
                 # Evidence supervision: add per-residue classification loss
                 pid = sample.get("id", "")
                 if pid in feature_index and hasattr(outputs, 'pre_evidence_logits'):
-                    from idpro.model.evidence import create_evidence_labels
+                    from idpro.model.idpro.evidence import create_evidence_labels
                     feat_info = feature_index[pid]
 
                     # Map feature types to match create_evidence_labels format
@@ -873,7 +874,7 @@ if __name__ == "__main__":
                         help="Override the per-stage max_steps. 0 = use stage default "
                              "(50000 for stage 1, 100000 for stage 4).")
     parser.add_argument("--resume", action="store_true")
-    # ESM3 structure-ablation flags (no-ops for non-ESM3 encoders)
+    # ESM3 structure-track flags (no-ops for non-ESM3 encoders)
     parser.add_argument("--structure-track", action="store_true",
                         help="ESM3 only: populate the structure track from PDB files. "
                              "Requires --structure-manifest.")

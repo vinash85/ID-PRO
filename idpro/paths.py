@@ -34,7 +34,8 @@ BENCHMARK     = DATA_ROOT / "preliminary_data" / "benchmark" / "microbiome_bench
 FEATURE_INDEX = DATA_ROOT / "feature_index.pkl"
 
 # Derived outputs (per-run subdirs created by trainers)
-CKPT_DIR      = RUNS_ROOT / "checkpoints"
-RESULTS_DIR   = RUNS_ROOT / "training_results"
-PROBE_DIR     = RUNS_ROOT / "probe"
-REPORTS_DIR   = REPO_ROOT / "reports"
+CKPT_DIR        = RUNS_ROOT / "checkpoints"
+RESULTS_DIR     = RUNS_ROOT / "training_results"
+AIM1_PROBE_DIR  = RUNS_ROOT / "aim1" / "probe"
+REPORTS_DIR     = REPO_ROOT / "reports"
+FIGURES_DIR     = REPORTS_DIR / "figures"

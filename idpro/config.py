@@ -20,7 +20,7 @@ class EncoderConfig:
     # Backend dispatch — auto-set by resolve() from PRESETS
     backend: str = "esmc"             # "esmc" | "esm2" | "esm3"
 
-    # ESM3 structure-track ablation knobs (no-ops for esmc/esm2)
+    # ESM3 structure-track knobs (no-ops for esmc/esm2)
     structure_track: bool = False     # If True, populate ESM3 structure track from PDB
     structure_manifest_path: str = "" # JSONL: {"accession": ..., "pdb_path": ...}
 

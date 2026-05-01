@@ -17,11 +17,11 @@ import torch.nn as nn
 from typing import List, Optional, Dict, Any
 
 from ..config import IDProConfig
-from .encoder import ProteinEncoder
-from .adaptor import ResidueAdaptor
-from .projector import ResidueProjector
-from .position import MultimodalPositionManager, ProteinPositionEncoding
-from .evidence import EvidenceSpanHead, EvidenceConfig
+from .p2t.encoder import ProteinEncoder
+from .p2t.adaptor import ResidueAdaptor
+from .p2t.projector import ResidueProjector
+from .p2t.position import MultimodalPositionManager, ProteinPositionEncoding
+from .idpro.evidence import EvidenceSpanHead, EvidenceConfig
 
 
 class IDProModel(nn.Module):

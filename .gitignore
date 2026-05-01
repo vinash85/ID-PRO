@@ -48,6 +48,9 @@ preliminary_data/rag/index*
 reports/
 preliminary_data/reports/
 
+# ── Experiments not yet implemented ────────────────────────────────────────
+idpro/experiments/aim2/
+
 # ── Proposal-only material (out of scope for the code repo) ─────────────────
 proposal/
 meetings/

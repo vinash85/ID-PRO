@@ -1,18 +1,12 @@
 #!/usr/bin/env python3
 """
 Filter existing QA jsonl files to the subset of proteins that have a structure
-in the AlphaFold v6 manifest.
+in the AlphaFold manifest.
 
-Both arms of the ESM3 structure ablation (S0 = no structure, S1 = structure)
-must train on the same protein subset so the only varying input is the
-structure track flag. This script produces the filtered QA used by both arms.
-
-We intentionally do NOT re-run generate_qa.py:
-  - generate_qa.py writes back to the source repo (forbidden by CLAUDE.md).
-  - Re-generation would reshuffle the random seed against a different input,
-    breaking matched-seed comparison between arms.
-  - The existing JSONL rows already carry an `id` field equal to the UniProt
-    accession, so post-hoc filtering is sufficient.
+When training ESM3 with the structure track populated, the QA pool must be
+restricted to proteins for which a PDB exists. The existing JSONL rows already
+carry an `id` field equal to the UniProt accession, so post-hoc filtering is
+sufficient — no need to re-run generate_qa.py.
 
 Usage (with env.sh sourced):
     python -m idpro.utils.filter_qa_by_structure \
@@ -52,10 +46,10 @@ def filter_jsonl(
 
     If `only_fullseq` is True, also requires the row's `long_format_id` to
     correspond to a whole-protein QA category (`fullseq_allfeats` or
-    `fullseq_domains`). Use this for stage 1 in the structure ablation:
-    fragment-classification QAs (TM helix, signal peptide, single domain
-    etc.) pair a short substring with the full-protein PDB and trip ESM3's
-    sequence-length-vs-structure assertion.
+    `fullseq_domains`). Use this for stage 1 when training with the structure
+    track on: fragment-classification QAs (TM helix, signal peptide, single
+    domain etc.) pair a short substring with the full-protein PDB and trip
+    ESM3's sequence-length-vs-structure assertion.
     """
     dst.parent.mkdir(parents=True, exist_ok=True)
     n_in = n_out = 0
@@ -91,7 +85,7 @@ def main() -> int:
     ap.add_argument("--sample-frac", type=float, default=1.0,
                     help="Fraction of structure-having accessions to keep (per-protein sample). Default 1.0 = no subsampling.")
     ap.add_argument("--sample-seed", type=int, default=42,
-                    help="Random seed for the per-protein subsample. Both arms must use the same seed.")
+                    help="Random seed for the per-protein subsample.")
     ap.add_argument("--stage1-only-fullseq", action="store_true",
                     help="For stage 1, keep only fullseq_allfeats / fullseq_domains "
                          "QAs (drops fragment-classification rows that have "
