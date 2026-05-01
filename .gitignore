@@ -1,0 +1,140 @@
+# ============================================================================
+# IDPro .gitignore
+#
+# This repo is CODE ONLY. Checkpoints and bulk data live on HuggingFace:
+#   Models:  https://huggingface.co/<org>/idpro-*
+#   Data:    https://huggingface.co/datasets/<org>/idpro-*
+#
+# Anything regenerable from the data-pipeline scripts in
+# preliminary_data/training_data/scripts/ is excluded here. The pipeline +
+# training code is kept; the byproducts are not.
+# ============================================================================
+
+# ── Local environment file (paths to data/runs/Qwen weights) ───────────────
+env.sh
+
+# ── Run outputs (checkpoints, training_results, probe outputs) ─────────────
+runs/
+
+# ── Model checkpoints (multi-TB, HuggingFace) ───────────────────────────────
+idpro/checkpoints/
+idpro/models/
+checkpoints/
+models/
+
+# ── Training run artifacts ──────────────────────────────────────────────────
+idpro/training_results/
+training_results/
+logs/
+*.log
+launch_logs/
+
+# ── Downloaded corpora (regenerable via download_*.py; HuggingFace) ─────────
+preliminary_data/training_data/downloads/
+preliminary_data/training_data/qa_stages/
+preliminary_data/training_data/qa_stages_struct/
+preliminary_data/training_data/qa_stages_struct_*/
+preliminary_data/training_data/alphafold_logs/
+
+# ── Derived embeddings, manifests, indices (regenerable) ────────────────────
+idpro/data/probe/embeddings/
+idpro/data/probe/embeddings_*/
+idpro/data/structure_manifest.jsonl
+idpro/data/feature_index.pkl
+idpro/data/rag_index*
+preliminary_data/rag/index*
+
+# ── Generated reports / analysis output (regenerable) ───────────────────────
+reports/
+preliminary_data/reports/
+
+# ── Proposal-only material (out of scope for the code repo) ─────────────────
+proposal/
+meetings/
+writing_style/
+docs/
+preliminary_data/presentations/
+preliminary_data/deepresearch/
+
+# ── All markdown except the root README ────────────────────────────────────
+# (Keeps the repo to code + small JSON/JSONL eval-set descriptors. Documentation
+# that needs to ship lives in code docstrings or HuggingFace model cards.)
+*.md
+!README.md
+
+# Folders that contain only markdown (now empty after the *.md rule)
+plans/
+
+# ── Local agent / IDE state ─────────────────────────────────────────────────
+.claude/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS junk ─────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# ── Environments ────────────────────────────────────────────────────────────
+.env
+.envrc
+.venv/
+venv/
+env/
+
+# ── HuggingFace / Torch cache ───────────────────────────────────────────────
+.cache/
+.hf_cache/
+hf_cache/
+
+# ── Large binary artifacts (catch-all; nothing in code should be these) ─────
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.h5
+*.hdf5
+*.pkl
+*.npy
+*.npz
+*.parquet
+*.arrow
+*.feather
+*.pdb
+*.cif
+*.mmcif
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.zst
+*.7z
+
+# ── Office / proposal docs (don't belong in a code repo) ────────────────────
+*.docx
+*.doc
+*.pptx
+*.ppt
+*.xlsx
+*.xls
+*.pdf
+
+# ── Jupyter scratch ─────────────────────────────────────────────────────────
+.ipynb_checkpoints/
