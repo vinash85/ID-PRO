@@ -19,7 +19,7 @@ Axes:
       an UPPER BOUND.
 
 Output:
-  preliminary_data/reports/IDPRO_VS_INTERLABELGO.md
+  reports/IDPRO_VS_INTERLABELGO.md
   idpro/data/probe/embeddings/idpro_vs_interlabelgo.json
 """
 from __future__ import annotations

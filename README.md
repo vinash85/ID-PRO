@@ -72,14 +72,18 @@ idpro_struct/
 │   ├── metrics/                  # Pure metric primitives (placeholder)
 │   └── utils/                    # build_structure_manifest, filter_qa_by_structure
 │
-└── preliminary_data/
-    ├── benchmark/                # Benchmark eval-set manifests + downloader
-    ├── dark_genome/              # Dark-genome eval set + downloaders
-    ├── rag/                      # RAG feasibility script
-    └── training_data/
-        └── scripts/              # UniProt / InterPro / M-CSA / Prosite /
-                                  # AlphaFold downloaders + record builder
-                                  # + QA generator
+└── datasets/                    # Data inputs (see datasets/README.md)
+    ├── probe_data/               # ── COMMITTED ── small probe + eval sets
+    │   ├── benchmark/            #   microbiome + bioenergy enzyme manifests
+    │   ├── dark_genome/          #   415-protein dark-genome eval set
+    │   └── rag/                  #   RAG feasibility experiment
+    ├── training_data/            # ── scripts only ── qa_stages*/ gitignored
+    │   ├── scripts/              #   UniProt / InterPro / M-CSA / Prosite
+    │   │                         #   downloaders + build_records + generate_qa
+    │   └── finetune_*.py, …      #   legacy LoRA finetune utilities
+    └── alphafold/                # ── downloader only ── pdbs/ gitignored
+        ├── download_alphafold.py
+        └── download_structure.py
 ```
 
 ## First-time setup
@@ -93,6 +97,14 @@ source env.sh                   # re-source whenever you open a new shell
 `env.sh` is gitignored — it stays local. Every script under `idpro/` resolves
 data and output paths through `idpro/paths.py`, which reads those environment
 variables. There is no hardcoded path in the package.
+
+## Data
+
+The repo ships only the small probe / eval data under
+`datasets/probe_data/` (microbiome + bioenergy benchmarks, dark-genome eval
+set). The multi-stage training QA pairs and the AlphaFold PDB cache are
+gitignored and have to be regenerated locally. See
+[`datasets/README.md`](datasets/README.md) for the rebuild commands.
 
 ## Training
 

@@ -4,12 +4,12 @@ Build the ESM3 structure manifest: a JSONL mapping UniProt accession → PDB pat
 
 Scans a directory of AlphaFold v6 PDB files named "AF-{accession}-F1-model_v6.pdb"
 and writes one JSON record per line to the output manifest. Used by
-`train_robust.py --structure-track --structure-manifest <path>` to look up
-the structure for each training sample by its UniProt accession.
+`train.py --structure-track --structure-manifest <path>` to look up the
+structure for each training sample by its UniProt accession.
 
 Usage:
-  python idpro/scripts/build_structure_manifest.py \
-      --pdb-dir preliminary_data/training_data/downloads/alphafold \
+  python -m idpro.utils.build_structure_manifest \
+      --pdb-dir datasets/alphafold/pdbs \
       --out     idpro/data/structure_manifest.jsonl
 """
 

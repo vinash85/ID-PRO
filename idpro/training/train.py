@@ -892,7 +892,8 @@ if __name__ == "__main__":
                              "launcher).")
     # Per-run output overrides (default to idpro.paths derivatives).
     parser.add_argument("--qa-dir", type=str, default=None,
-                        help="Override QA dir (default: $IDPRO_DATA_ROOT/preliminary_data/training_data/qa_stages).")
+                        help="Override QA dir (default: $IDPRO_DATA_ROOT/preliminary_data/training_data/qa_stages; "
+                             "in-repo data lives under datasets/training_data/).")
     parser.add_argument("--ckpt-dir", type=str, default=None,
                         help="Override checkpoint dir (default: $IDPRO_RUNS_ROOT/checkpoints/robust).")
     parser.add_argument("--results-dir", type=str, default=None,

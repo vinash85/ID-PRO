@@ -22,9 +22,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
-from idpro.paths import AIM1_PROBE_DIR as DATA_DIR, DATA_ROOT  # noqa: E402
+from idpro.paths import AIM1_PROBE_DIR as DATA_DIR, DARK_GENOME_META  # noqa: E402
 
-META = DATA_ROOT / "preliminary_data" / "dark_genome" / "dark_genome_metadata.tsv"
+META = DARK_GENOME_META
 
 GO_F_RE = re.compile(r"F:([^;]+)")
 

@@ -39,10 +39,10 @@ from sklearn.metrics import roc_auc_score
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
-from idpro.paths import AIM1_PROBE_DIR as DATA_DIR, DATA_ROOT  # noqa: E402
+from idpro.paths import AIM1_PROBE_DIR as DATA_DIR, REPORTS_DIR  # noqa: E402
 
 EMB_DIR = DATA_DIR / "embeddings"
-REPORT_DIR = DATA_ROOT / "preliminary_data" / "reports"
+REPORT_DIR = REPORTS_DIR
 REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
 VIEWS = ["view_a_prompteol_l48", "view_b_question_mean_l48", "view_c_eos_l64"]

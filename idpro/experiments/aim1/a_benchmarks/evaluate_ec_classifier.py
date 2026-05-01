@@ -33,10 +33,10 @@ from sklearn.model_selection import StratifiedKFold
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
-from idpro.paths import AIM1_PROBE_DIR as DATA_DIR, DATA_ROOT  # noqa: E402
+from idpro.paths import AIM1_PROBE_DIR as DATA_DIR, DARK_GENOME_META  # noqa: E402
 
 EMB_DIR = DATA_DIR / "embeddings"
-DARK_META = DATA_ROOT / "preliminary_data" / "dark_genome" / "dark_genome_metadata.tsv"
+DARK_META = DARK_GENOME_META
 
 VIEWS = [
     "view_a_prompteol_l48",

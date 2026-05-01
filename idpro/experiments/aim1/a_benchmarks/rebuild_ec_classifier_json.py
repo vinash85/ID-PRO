@@ -17,10 +17,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
-from idpro.paths import AIM1_PROBE_DIR, DATA_ROOT  # noqa: E402
+from idpro.paths import AIM1_PROBE_DIR, FIGURES_DIR  # noqa: E402
 
 EMB = AIM1_PROBE_DIR / "embeddings"
-FIG = DATA_ROOT / "preliminary_data" / "figures"
+FIG = FIGURES_DIR
+FIG.mkdir(parents=True, exist_ok=True)
 
 CLASS_NAMES = {
     0: "Non-enzyme", 1: "Oxidoreductase", 2: "Transferase", 3: "Hydrolase",

@@ -15,9 +15,9 @@ Fix:
   - Compute strict-keyword AUC for each baseline on the same subset.
   - Report per-subset macro-AUC for each method.
 
-Output: preliminary_data/reports/FAIR_HEAD_TO_HEAD.md,
+Output: reports/FAIR_HEAD_TO_HEAD.md,
         idpro/data/probe/embeddings/fair_head_to_head.json,
-        preliminary_data/figures/spider_ec_fair.{png,pdf}
+        reports/figures/spider_ec_fair.{png,pdf}
 """
 
 from __future__ import annotations
@@ -36,12 +36,13 @@ from sklearn.metrics import roc_auc_score
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
-from idpro.paths import AIM1_PROBE_DIR as DATA_DIR, DATA_ROOT  # noqa: E402
+from idpro.paths import AIM1_PROBE_DIR as DATA_DIR, DATA_ROOT, REPORTS_DIR, FIGURES_DIR  # noqa: E402
 
 EMB_DIR = DATA_DIR / "embeddings"
-PREL = DATA_ROOT / "preliminary_data"
-FIG_DIR = PREL / "figures"
-REPORT_DIR = PREL / "reports"
+FIG_DIR = FIGURES_DIR
+REPORT_DIR = REPORTS_DIR
+FIG_DIR.mkdir(parents=True, exist_ok=True)
+REPORT_DIR.mkdir(parents=True, exist_ok=True)
 BENCH_RES = DATA_ROOT / "benchmark" / "results"
 
 VIEWS = ["view_a_prompteol_l48", "view_b_question_mean_l48", "view_c_eos_l64"]

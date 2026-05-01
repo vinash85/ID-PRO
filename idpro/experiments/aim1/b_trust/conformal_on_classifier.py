@@ -16,7 +16,7 @@ Pipeline:
        - fraction of test points that are in the "high-confidence" (|set|=1) band
   4. Compare against standard argmax accuracy on the same splits.
 
-Output: `preliminary_data/reports/CONFORMAL_CLASSIFIER_RESULTS.md` and
+Output: `reports/CONFORMAL_CLASSIFIER_RESULTS.md` and
 `idpro/data/probe/embeddings/conformal_classifier_results.json`.
 
 Run:
@@ -38,7 +38,7 @@ import torch.nn as nn
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
 from idpro.model.idpro.conformal import SplitConformalPredictor  # noqa: E402
-from idpro.paths import AIM1_PROBE_DIR as DATA_DIR, DATA_ROOT, REPORTS_DIR  # noqa: E402
+from idpro.paths import AIM1_PROBE_DIR as DATA_DIR, DARK_GENOME_META, REPORTS_DIR  # noqa: E402
 
 EMB_DIR = DATA_DIR / "embeddings"
 REPORT_DIR = REPORTS_DIR
@@ -150,7 +150,7 @@ def build_dark_weak_labels():
         7: ["transporter activity", "transmembrane transport", "channel activity", "permease"],
     }
     labels = {}
-    meta = DATA_ROOT / "preliminary_data" / "dark_genome" / "dark_genome_metadata.tsv"
+    meta = DARK_GENOME_META
     with meta.open() as f:
         for r in csv.DictReader(f, delimiter="\t"):
             go = (r.get("go_terms") or "").lower()

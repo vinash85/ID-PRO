@@ -6,7 +6,7 @@
 #   Data:    https://huggingface.co/datasets/<org>/idpro-*
 #
 # Anything regenerable from the data-pipeline scripts in
-# preliminary_data/training_data/scripts/ is excluded here. The pipeline +
+# datasets/training_data/scripts/ is excluded here. The pipeline +
 # training code is kept; the byproducts are not.
 # ============================================================================
 
@@ -29,12 +29,14 @@ logs/
 *.log
 launch_logs/
 
-# ── Downloaded corpora (regenerable via download_*.py; HuggingFace) ─────────
-preliminary_data/training_data/downloads/
-preliminary_data/training_data/qa_stages/
-preliminary_data/training_data/qa_stages_struct/
-preliminary_data/training_data/qa_stages_struct_*/
-preliminary_data/training_data/alphafold_logs/
+# ── Generated training data (regenerable; HuggingFace) ─────────────────────
+datasets/training_data/qa_stages/
+datasets/training_data/qa_stages_*/
+
+# ── AlphaFold PDBs + accessions (multi-100k files; regenerable) ─────────────
+datasets/alphafold/pdbs/
+datasets/alphafold/accessions.txt
+datasets/alphafold/logs/
 
 # ── Derived embeddings, manifests, indices (regenerable) ────────────────────
 idpro/data/probe/embeddings/
@@ -42,11 +44,10 @@ idpro/data/probe/embeddings_*/
 idpro/data/structure_manifest.jsonl
 idpro/data/feature_index.pkl
 idpro/data/rag_index*
-preliminary_data/rag/index*
+datasets/probe_data/rag/index*
 
 # ── Generated reports / analysis output (regenerable) ───────────────────────
 reports/
-preliminary_data/reports/
 
 # ── Experiments not yet implemented ────────────────────────────────────────
 idpro/experiments/aim2/
@@ -56,8 +57,6 @@ proposal/
 meetings/
 writing_style/
 docs/
-preliminary_data/presentations/
-preliminary_data/deepresearch/
 
 # ── All markdown except the root README ────────────────────────────────────
 # (Keeps the repo to code + small JSON/JSONL eval-set descriptors. Documentation

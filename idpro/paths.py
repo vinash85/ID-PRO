@@ -28,9 +28,19 @@ QWEN_PATH     = _req("IDPRO_QWEN_PATH")
 HF_CACHE      = _opt("IDPRO_HF_CACHE")
 P2T_DIR       = _opt("IDPRO_P2T_DIR")
 
-# Derived inputs
+# In-repo small data (committed under datasets/probe_data/)
+DATASETS_DIR     = REPO_ROOT / "datasets"
+PROBE_DATA_DIR   = DATASETS_DIR / "probe_data"
+BENCHMARK        = PROBE_DATA_DIR / "benchmark" / "microbiome_benchmark.json"
+DARK_GENOME_META = PROBE_DATA_DIR / "dark_genome" / "dark_genome_metadata.tsv"
+DARK_GENOME_DB   = PROBE_DATA_DIR / "dark_genome" / "dark_genome_proteins.json"
+
+# Large external inputs. QA_DIR + FEATURE_INDEX default to the legacy
+# DATA_ROOT/preliminary_data layout for back-compat with existing env.sh
+# pointing at the source data tree; AlphaFold PDBs default to the in-repo
+# (gitignored) datasets/alphafold/pdbs.
 QA_DIR        = DATA_ROOT / "preliminary_data" / "training_data" / "qa_stages"
-BENCHMARK     = DATA_ROOT / "preliminary_data" / "benchmark" / "microbiome_benchmark.json"
+ALPHAFOLD_DIR = DATASETS_DIR / "alphafold" / "pdbs"
 FEATURE_INDEX = DATA_ROOT / "feature_index.pkl"
 
 # Derived outputs (per-run subdirs created by trainers)

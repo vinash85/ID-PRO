@@ -12,7 +12,7 @@ Usage (with env.sh sourced):
     python -m idpro.utils.filter_qa_by_structure \
         --manifest "$IDPRO_RUNS_ROOT/structure_manifest.jsonl" \
         --src-dir "$IDPRO_DATA_ROOT/preliminary_data/training_data/qa_stages" \
-        --dst-dir "$IDPRO_REPO_ROOT/preliminary_data/training_data/qa_stages_struct"
+        --dst-dir "$IDPRO_REPO_ROOT/datasets/training_data/qa_stages_struct"
 """
 
 from __future__ import annotations
