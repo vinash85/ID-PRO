@@ -19,41 +19,36 @@ Splits:
      compare coverage to unweighted conformal.
 
 Reference (in-distribution baseline): random 80/20 split, same classifier
-probe, already computed in `conformal_selective_curve.json`.
-
-Usage:
-  python idpro/scripts/run_e1_conformal_splits.py \
-      [--metadata-cache idpro/data/probe/uniprot_metadata_cache.jsonl] \
-      [--top-k-pfam 5] \
-      [--alpha 0.10] \
-      [--out idpro/data/probe/embeddings/e1_conformal_splits.json]
+probe, already computed in `selective_curve.json`.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import sys
-from collections import Counter
 from pathlib import Path
 
 import numpy as np
 import torch
-import torch.nn as nn
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
 from idpro.model.idpro.conformal import SplitConformalPredictor  # noqa: E402
-from idpro.paths import AIM1_PROBE_DIR as DATA_DIR  # noqa: E402
+from idpro.paths import (  # noqa: E402
+    CONFORMAL_RESULTS_DIR,
+    EXTRACTED_EMBEDDINGS_DIR,
+    UNIPROT_METADATA_CACHE,
+)
+from idpro.experiments.aim1.probe_benchmarks.utils import (  # noqa: E402
+    VIEWS,
+    ec_label,
+    load_emb_cache,
+    predict,
+    stack_views,
+    train_probe,
+)
 
-EMB_DIR = DATA_DIR / "embeddings"
-
-# Same views as the existing conformal_on_classifier.py script
-VIEWS = ["view_a_prompteol_l48", "view_b_question_mean_l48", "view_c_eos_l64"]
-N_CLASSES = 8
-CLASS_NAMES = {
-    0: "Non-enzyme", 1: "Oxidoreductase", 2: "Transferase", 3: "Hydrolase",
-    4: "Lyase", 5: "Isomerase", 6: "Ligase", 7: "Translocase",
-}
+EMB_DIR = EXTRACTED_EMBEDDINGS_DIR
 
 
 # --------------------------------------------------------------------------- #
@@ -62,13 +57,13 @@ CLASS_NAMES = {
 
 
 def load_embeddings():
-    ref = torch.load(EMB_DIR / "reference_embeddings.pt", map_location="cpu", weights_only=False)
-    bench = torch.load(EMB_DIR / "benchmark_embeddings.pt", map_location="cpu", weights_only=False)
+    ref = load_emb_cache(EMB_DIR / "reference_embeddings.pt")
+    bench = load_emb_cache(EMB_DIR / "benchmark_embeddings.pt")
     return {**ref, **bench}
 
 
 def load_metadata(cache_path: Path) -> dict[str, dict]:
-    """Load the UniProt metadata cache built by fetch_uniprot_metadata_for_e1.py."""
+    """Load the UniProt metadata cache built by fetch_uniprot_metadata.py."""
     meta: dict[str, dict] = {}
     if not cache_path.exists():
         print(f"WARN: metadata cache not found: {cache_path}")
@@ -83,55 +78,9 @@ def load_metadata(cache_path: Path) -> dict[str, dict]:
     return meta
 
 
-def ec_label(cache, acc):
-    v = cache[acc]["labels"]["ec_l1"]
-    return 0 if v is None else int(v)
-
-
-def stack_views(cache, accs):
-    return torch.cat(
-        [torch.stack([cache[a][v].float() for a in accs]) for v in VIEWS],
-        dim=-1,
-    )
-
-
 # --------------------------------------------------------------------------- #
-# Probe + conformal helpers (lifted + slimmed from conformal_on_classifier.py)
+# Conformal helpers
 # --------------------------------------------------------------------------- #
-
-
-class LinearProbe(nn.Module):
-    def __init__(self, in_dim, out_dim):
-        super().__init__()
-        self.fc = nn.Linear(in_dim, out_dim)
-
-    def forward(self, x):
-        return self.fc(x)
-
-
-def train_probe(x, y, device, epochs=100, lr=1e-3, wd=1e-4, seed=0):
-    torch.manual_seed(seed)
-    in_dim = x.shape[1]
-    probe = LinearProbe(in_dim, N_CLASSES).to(device)
-    opt = torch.optim.AdamW(probe.parameters(), lr=lr, weight_decay=wd)
-    loss_fn = nn.CrossEntropyLoss()
-    x = x.to(device)
-    y = y.to(device)
-    bs = 64
-    for _ in range(epochs):
-        perm = torch.randperm(x.shape[0], device=device)
-        for s in range(0, x.shape[0], bs):
-            idx = perm[s:s + bs]
-            loss = loss_fn(probe(x[idx]), y[idx])
-            opt.zero_grad()
-            loss.backward()
-            opt.step()
-    return probe.eval()
-
-
-@torch.no_grad()
-def predict(probe, x, device):
-    return torch.softmax(probe(x.to(device)), dim=-1).cpu().numpy()
 
 
 def conformal_sets_unweighted(cal_scores: np.ndarray, cal_labels: np.ndarray,
@@ -154,9 +103,7 @@ def conformal_sets_weighted(cal_scores: np.ndarray, cal_labels: np.ndarray,
     aggregate coverage test we use constant test weight = mean(cal_weights).
     """
     nc_cal = 1.0 - np.array([cal_scores[i, cal_labels[i]] for i in range(len(cal_labels))])
-    # Normalized weights (sum = N)
     w = cal_weights * (len(cal_weights) / cal_weights.sum())
-    # Weighted empirical quantile at level (1 - alpha)
     order = np.argsort(nc_cal)
     nc_sorted = nc_cal[order]
     w_sorted = w[order]
@@ -170,7 +117,7 @@ def conformal_sets_weighted(cal_scores: np.ndarray, cal_labels: np.ndarray,
 
 
 def evaluate_sets(y_true, probs, sets):
-    N, C = probs.shape
+    N, _ = probs.shape
     set_sizes = sets.sum(axis=1)
     covered = np.array([sets[i, int(y_true[i])] for i in range(N)])
     coverage = float(covered.mean())
@@ -206,8 +153,7 @@ def evaluate_sets(y_true, probs, sets):
 def build_temporal_split(accs: list[str], meta: dict, target_cal_size: int = 300,
                          min_test_size: int = 200, rng=None):
     """Temporal split using the MEDIAN deposit year as the cutoff. Pre-cutoff
-    proteins form train + cal; post-cutoff proteins form the test set. This
-    tests whether calibration on older deposits generalizes to newer ones."""
+    proteins form train + cal; post-cutoff proteins form the test set."""
     if rng is None:
         rng = np.random.default_rng(0)
     years = {}
@@ -219,7 +165,6 @@ def build_temporal_split(accs: list[str], meta: dict, target_cal_size: int = 300
     if len(years) < target_cal_size + min_test_size:
         return None
     all_years = sorted(years.values())
-    # Use median year as the cutoff — roughly 50/50 split by time
     cutoff_year = all_years[len(all_years) // 2]
     pre = [a for a, y in years.items() if y <= cutoff_year]
     post = [a for a, y in years.items() if y > cutoff_year]
@@ -242,7 +187,7 @@ def build_temporal_split(accs: list[str], meta: dict, target_cal_size: int = 300
 def build_pfam_holdout_splits(accs: list[str], meta: dict, top_k: int = 5):
     """Leave-one-Pfam-family-out. Pick the top-K most populous Pfam families and
     for each one generate a fold where test = proteins containing that family,
-    cal+train = all other proteins (stratified)."""
+    cal+train = all other proteins."""
     pfam_to_accs: dict[str, list[str]] = {}
     for a in accs:
         m = meta.get(a, {})
@@ -253,8 +198,6 @@ def build_pfam_holdout_splits(accs: list[str], meta: dict, top_k: int = 5):
     for pf, family_accs in top:
         test = family_accs
         others = [a for a in accs if a not in set(family_accs)]
-        # Need metadata to be present to exclude — fall back skip if accs w/o metadata
-        # Random 80/20 on the "others" half → train vs cal
         rng = np.random.default_rng(hash(pf) & 0xffff)
         others_shuf = list(others)
         rng.shuffle(others_shuf)
@@ -283,12 +226,9 @@ def build_synthetic_shift_split(accs: list[str], cache, target_cal_size: int = 3
     rng.shuffle(perm)
     cal = perm[:target_cal_size]
     train = perm[target_cal_size:]
-    # Test = calibration's own held-out evaluation isn't valid; use the 20%
-    # of train as the test-of-coverage (standard CV practice).
     n_test = min(637, int(len(train) * 0.2))
     test = train[:n_test]
     train = train[n_test:]
-    # Weights: everything = 1.0 except boost_class in cal gets boost_factor
     cal_labels = np.array([ec_label(cache, a) for a in cal])
     weights = np.where(cal_labels == boost_class, boost_factor, 1.0).astype(float)
     return {
@@ -318,18 +258,20 @@ def run_split(split: dict, cache, device, alpha: float = 0.10, use_weighted: boo
                               f"cal={len(cal_accs)}, test={len(test_accs)})",
         }
 
+    views = list(VIEWS)
     y_train = torch.tensor(
         [ec_label(cache, a) for a in train_accs], dtype=torch.long
     )
-    x_train = stack_views(cache, train_accs)
-    probe = train_probe(x_train, y_train, device)
+    x_train = stack_views(cache, train_accs, views)
+    probe = train_probe(x_train, y_train, out_dim=8, task="ec_l1",
+                        kind="linear", device=device, epochs=100)
 
-    x_cal = stack_views(cache, cal_accs)
-    p_cal = predict(probe, x_cal, device)
+    x_cal = stack_views(cache, cal_accs, views)
+    p_cal = predict(probe, x_cal, device, "ec_l1")
     y_cal = np.array([ec_label(cache, a) for a in cal_accs])
 
-    x_test = stack_views(cache, test_accs)
-    p_test = predict(probe, x_test, device)
+    x_test = stack_views(cache, test_accs, views)
+    p_test = predict(probe, x_test, device, "ec_l1")
     y_test = np.array([ec_label(cache, a) for a in test_accs])
 
     if use_weighted:
@@ -348,7 +290,6 @@ def run_split(split: dict, cache, device, alpha: float = 0.10, use_weighted: boo
         "n_test": len(test_accs),
         "weighted": use_weighted,
     })
-    # Pass-through split-specific metadata
     for k in ("cutoff_year", "pfam_family", "family_size",
               "boost_class", "boost_factor"):
         if k in split:
@@ -364,12 +305,14 @@ def run_split(split: dict, cache, device, alpha: float = 0.10, use_weighted: boo
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--metadata-cache", type=str,
-                    default=str(DATA_DIR / "uniprot_metadata_cache.jsonl"))
+                    default=str(UNIPROT_METADATA_CACHE))
     ap.add_argument("--top-k-pfam", type=int, default=5)
     ap.add_argument("--alpha", type=float, default=0.10)
     ap.add_argument("--out", type=str,
-                    default=str(EMB_DIR / "e1_conformal_splits.json"))
+                    default=str(CONFORMAL_RESULTS_DIR / "shift_splits.json"))
     args = ap.parse_args()
+
+    CONFORMAL_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}")
@@ -382,7 +325,6 @@ def main():
     meta = load_metadata(Path(args.metadata_cache))
     print(f"Metadata cache:    {len(meta)} records")
 
-    # --- Split A: temporal
     temporal = build_temporal_split(all_accs, meta)
     if temporal:
         print(f"\nSplit A (temporal): cutoff={temporal['cutoff_year']}, "
@@ -391,21 +333,18 @@ def main():
     else:
         print("\nSplit A (temporal): SKIPPED (insufficient metadata)")
 
-    # --- Split B: Pfam-family holdout (top-K)
     pfam_splits = build_pfam_holdout_splits(all_accs, meta, top_k=args.top_k_pfam)
     print(f"\nSplit B (pfam-holdout): {len(pfam_splits)} folds:")
     for s in pfam_splits:
         print(f"   - {s['pfam_family']} (family_size={s['family_size']}, "
               f"test={len(s['test'])})")
 
-    # --- Split C: synthetic shift — run BOTH unweighted and weighted
     synthetic = build_synthetic_shift_split(all_accs, cache)
     print(f"\nSplit C (synthetic shift): boost_class={synthetic['boost_class']} "
           f"x{synthetic['boost_factor']}, "
           f"train={len(synthetic['train'])}, cal={len(synthetic['cal'])}, "
           f"test={len(synthetic['test'])}")
 
-    # ---- Reference: random 80/20 in-distribution (sanity) ----
     rng = np.random.default_rng(42)
     perm = list(all_accs)
     rng.shuffle(perm)
@@ -423,14 +362,12 @@ def main():
 
     results: list[dict] = []
 
-    # In-distribution reference
-    print(f"\n[In-distribution reference] ...")
+    print("\n[In-distribution reference] ...")
     r = run_split(in_dist, cache, device, alpha=args.alpha)
     print(f"  coverage={r.get('coverage'):.3f}  mean_set={r.get('mean_set_size'):.2f}  "
           f"max_set={r.get('max_set_size')}")
     results.append(r)
 
-    # Temporal
     if temporal:
         print(f"\n[A temporal @ cutoff {temporal['cutoff_year']}] ...")
         r = run_split(temporal, cache, device, alpha=args.alpha)
@@ -442,7 +379,6 @@ def main():
                   f"max_set={r.get('max_set_size')}")
         results.append(r)
 
-    # Pfam holdout
     for s in pfam_splits:
         print(f"\n[B pfam={s['pfam_family']}] ...")
         r = run_split(s, cache, device, alpha=args.alpha)
@@ -454,8 +390,7 @@ def main():
                   f"max_set={r.get('max_set_size')}")
         results.append(r)
 
-    # Synthetic shift: run UNWEIGHTED and WEIGHTED both
-    print(f"\n[C synthetic shift, UNWEIGHTED conformal] ...")
+    print("\n[C synthetic shift, UNWEIGHTED conformal] ...")
     r_unw = run_split(synthetic, cache, device, alpha=args.alpha, use_weighted=False)
     r_unw["name"] += "_unweighted"
     if "skipped_reason" in r_unw:
@@ -465,7 +400,7 @@ def main():
               f"mean_set={r_unw.get('mean_set_size'):.2f}")
     results.append(r_unw)
 
-    print(f"\n[C synthetic shift, WEIGHTED conformal] ...")
+    print("\n[C synthetic shift, WEIGHTED conformal] ...")
     r_w = run_split(synthetic, cache, device, alpha=args.alpha, use_weighted=True)
     r_w["name"] += "_weighted"
     if "skipped_reason" in r_w:
@@ -475,7 +410,6 @@ def main():
               f"mean_set={r_w.get('mean_set_size'):.2f}")
     results.append(r_w)
 
-    # ---- Summary table ----
     print("\n" + "=" * 72)
     print(f"SUMMARY — conformal @ alpha={args.alpha} (nominal coverage = {1 - args.alpha:.0%})")
     print("=" * 72)
@@ -490,7 +424,6 @@ def main():
               f"{r.get('mean_set_size', 0):>9.2f} "
               f"{r.get('max_set_size', 0):>5}")
 
-    # Write JSON
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps({

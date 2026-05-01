@@ -9,12 +9,19 @@ Usage: python generate_qa.py [--stage 1|2|3|4|all]
 """
 
 import json
+import os
 import re
 import random
 import argparse
 from pathlib import Path
 
-BASE = Path("/data/asahu/projects/doe_genesis/preliminary_data/training_data")
+# Resolve the training-data root via env var (overrides) or the in-repo
+# datasets/training_data layout the script lives under.
+_DATASETS_ROOT = Path(os.environ.get(
+    "IDPRO_DATA_ROOT",
+    Path(__file__).resolve().parents[2],
+))
+BASE = _DATASETS_ROOT / "training_data"
 RECORDS = BASE / "structured_records" / "annotation_records.jsonl"
 QA_DIR = BASE / "qa_stages"
 

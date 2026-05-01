@@ -16,11 +16,7 @@ Pipeline:
        - fraction of test points that are in the "high-confidence" (|set|=1) band
   4. Compare against standard argmax accuracy on the same splits.
 
-Output: `reports/CONFORMAL_CLASSIFIER_RESULTS.md` and
-`idpro/data/probe/embeddings/conformal_classifier_results.json`.
-
-Run:
-    python scripts/conformal_on_classifier.py
+Output: `CONFORMAL_RESULTS_DIR/classifier_conformal.json`.
 """
 
 from __future__ import annotations
@@ -33,62 +29,29 @@ from typing import Dict, List
 
 import numpy as np
 import torch
-import torch.nn as nn
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
 from idpro.model.idpro.conformal import SplitConformalPredictor  # noqa: E402
-from idpro.paths import AIM1_PROBE_DIR as DATA_DIR, DARK_GENOME_META, REPORTS_DIR  # noqa: E402
+from idpro.paths import (  # noqa: E402
+    CONFORMAL_RESULTS_DIR,
+    DARK_GENOME_META,
+    EXTRACTED_EMBEDDINGS_DIR,
+)
+from idpro.experiments.aim1.probe_benchmarks.utils import (  # noqa: E402
+    CLASS_NAMES,
+    VIEWS,
+    EC_LABEL_KEYWORDS,
+    ec_label,
+    load_emb_cache,
+    predict,
+    stack_views,
+    train_probe,
+    weak_ec_l1_from_go,
+)
 
-EMB_DIR = DATA_DIR / "embeddings"
-REPORT_DIR = REPORTS_DIR
-REPORT_DIR.mkdir(parents=True, exist_ok=True)
-
-VIEWS = ["view_a_prompteol_l48", "view_b_question_mean_l48", "view_c_eos_l64"]
-CLASS_NAMES = {
-    0: "Non-enzyme", 1: "Oxidoreductase", 2: "Transferase", 3: "Hydrolase",
-    4: "Lyase", 5: "Isomerase", 6: "Ligase", 7: "Translocase",
-}
-
-
-class LinearProbe(nn.Module):
-    def __init__(self, in_dim, out_dim):
-        super().__init__()
-        self.fc = nn.Linear(in_dim, out_dim)
-    def forward(self, x):
-        return self.fc(x)
-
-
-def stack_views(cache, accs, views):
-    return torch.cat(
-        [torch.stack([cache[a][v].float() for a in accs]) for v in views], dim=-1
-    )
-
-
-def ec_label(cache, a):
-    v = cache[a]["labels"]["ec_l1"]
-    return 0 if v is None else int(v)
-
-
-def train_probe(x, y, device, epochs=100, lr=1e-3, wd=1e-4):
-    in_dim = x.shape[1]
-    probe = LinearProbe(in_dim, 8).to(device)
-    opt = torch.optim.AdamW(probe.parameters(), lr=lr, weight_decay=wd)
-    loss_fn = nn.CrossEntropyLoss()
-    x = x.to(device); y = y.to(device)
-    bs = 64
-    for _ in range(epochs):
-        perm = torch.randperm(x.shape[0], device=device)
-        for s in range(0, x.shape[0], bs):
-            idx = perm[s:s+bs]
-            loss = loss_fn(probe(x[idx]), y[idx])
-            opt.zero_grad(); loss.backward(); opt.step()
-    return probe.eval()
-
-
-@torch.no_grad()
-def predict(probe, x, device):
-    return torch.softmax(probe(x.to(device)), dim=-1).cpu().numpy()
+EMB_DIR = EXTRACTED_EMBEDDINGS_DIR
+CONFORMAL_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def conformal_sets(cal_scores: np.ndarray, test_scores: np.ndarray, alpha: float):
@@ -139,28 +102,14 @@ def evaluate(y_true, probs, sets):
 
 
 def build_dark_weak_labels():
-    import csv, re
-    EC_KEYWORDS = {
-        1: ["oxidoreductase activity", "dehydrogenase", "reductase", "oxidase", "oxygenase", "peroxidase"],
-        2: ["transferase activity", "kinase activity", "methyltransferase", "acyltransferase", "glycosyltransferase"],
-        3: ["hydrolase activity", "peptidase", "protease", "nuclease", "phosphatase", "esterase", "lipase", "glycosidase"],
-        4: ["lyase activity", "decarboxylase", "aldolase", "dehydratase", "synthase"],
-        5: ["isomerase activity", "racemase", "epimerase", "mutase"],
-        6: ["ligase activity", "synthetase"],
-        7: ["transporter activity", "transmembrane transport", "channel activity", "permease"],
-    }
-    labels = {}
-    meta = DARK_GENOME_META
-    with meta.open() as f:
+    """Reuse the shared weak EC-L1 label rule (`utils.metrics.weak_ec_l1_from_go`)."""
+    import csv
+    labels: dict[str, int] = {}
+    with DARK_GENOME_META.open() as f:
         for r in csv.DictReader(f, delimiter="\t"):
-            go = (r.get("go_terms") or "").lower()
-            if not go:
-                continue
-            matched = {ec for ec, kws in EC_KEYWORDS.items() if any(kw in go for kw in kws)}
-            if not matched:
-                labels[r["accession"]] = 0
-            elif len(matched) == 1:
-                labels[r["accession"]] = next(iter(matched))
+            v = weak_ec_l1_from_go(r.get("go_terms") or "")
+            if v is not None:
+                labels[r["accession"]] = v
     return labels
 
 
@@ -173,9 +122,9 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}")
 
-    ref_cache = torch.load(EMB_DIR / "reference_embeddings.pt", map_location="cpu", weights_only=False)
-    bench_cache = torch.load(EMB_DIR / "benchmark_embeddings.pt", map_location="cpu", weights_only=False)
-    dark_cache = torch.load(EMB_DIR / "dark_embeddings.pt", map_location="cpu", weights_only=False)
+    ref_cache = load_emb_cache(EMB_DIR / "reference_embeddings.pt")
+    bench_cache = load_emb_cache(EMB_DIR / "benchmark_embeddings.pt")
+    dark_cache = load_emb_cache(EMB_DIR / "dark_embeddings.pt")
 
     ref_accs = list(ref_cache.keys())
     bench_accs = list(bench_cache.keys())
@@ -199,12 +148,14 @@ def main():
     print(f"Train: {len(tr_accs)}  Calibration: {len(cal_accs)}")
 
     # Train probe on train set
-    x_tr = stack_views(all_cache, tr_accs, VIEWS)
-    probe = train_probe(x_tr, torch.tensor(y_tr, dtype=torch.long), device=device)
+    x_tr = stack_views(all_cache, tr_accs, list(VIEWS))
+    probe = train_probe(x_tr, torch.tensor(y_tr, dtype=torch.long),
+                        out_dim=8, task="ec_l1", kind="linear",
+                        device=device, epochs=100)
 
     # Compute probs on calibration + benchmark + dark
-    x_cal = stack_views(all_cache, cal_accs, VIEWS)
-    p_cal = predict(probe, x_cal, device)
+    x_cal = stack_views(all_cache, cal_accs, list(VIEWS))
+    p_cal = predict(probe, x_cal, device, "ec_l1")
 
     # Nonconformity on calibration = 1 - P(true|x)
     nc_cal = 1 - np.array([p_cal[i, y_cal[i]] for i in range(len(y_cal))])
@@ -215,15 +166,15 @@ def main():
     # calibration-held-out benchmark proteins.
     test_bench_accs = [a for a in bench_accs if a in cal_accs]
     y_test_bench = np.array([ec_label(bench_cache, a) for a in test_bench_accs])
-    x_test_bench = stack_views(bench_cache, test_bench_accs, VIEWS)
-    p_test_bench = predict(probe, x_test_bench, device)
+    x_test_bench = stack_views(bench_cache, test_bench_accs, list(VIEWS))
+    p_test_bench = predict(probe, x_test_bench, device, "ec_l1")
 
     # Dark weak labels
     dark_weak = build_dark_weak_labels()
     test_dark_accs = [a for a in dark_accs if a in dark_weak]
     y_test_dark = np.array([dark_weak[a] for a in test_dark_accs])
-    x_test_dark = stack_views(dark_cache, test_dark_accs, VIEWS)
-    p_test_dark = predict(probe, x_test_dark, device)
+    x_test_dark = stack_views(dark_cache, test_dark_accs, list(VIEWS))
+    p_test_dark = predict(probe, x_test_dark, device, "ec_l1")
 
     print(f"\nEvaluation splits:")
     print(f"  benchmark-held-out (from 20% calib split): {len(test_bench_accs)}")
@@ -277,7 +228,7 @@ def main():
     # Dark genome: no hard ground truth, but we can report how many get flagged
     # as "confident" (singleton set) vs "abstain" (empty set or |set|>1)
     print(f"\n  Dark-genome triage (α=0.10):")
-    singleton_dark = int(dark_sizes == 1 .sum()) if False else int((dark_sizes == 1).sum())
+    singleton_dark = int((dark_sizes == 1).sum())
     abstain_dark = int((dark_sizes != 1).sum())
     print(f"    High-confidence (|set|=1):   {singleton_dark}/{len(dark_sizes)} "
           f"({singleton_dark/len(dark_sizes)*100:.1f}%)")
@@ -319,7 +270,7 @@ def main():
     }
 
     # Save
-    out_path = EMB_DIR / "conformal_classifier_results.json"
+    out_path = CONFORMAL_RESULTS_DIR / "classifier_conformal.json"
     out_path.write_text(json.dumps(results, indent=2, default=str))
     print(f"\nWrote {out_path}")
 

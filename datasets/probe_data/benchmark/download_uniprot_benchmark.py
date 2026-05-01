@@ -14,11 +14,20 @@ import random
 import time
 import sys
 import os
+from pathlib import Path
 import requests
 from collections import defaultdict
 
 UNIPROT_BASE = "https://rest.uniprot.org/uniprotkb/search"
-OUTPUT_DIR = "/data/asahu/projects/doe_genesis/preliminary_data/benchmark"
+# Default to the in-repo datasets/probe_data/benchmark dir the script lives in;
+# overridable via IDPRO_DATA_ROOT (which gets the same probe_data/benchmark
+# subpath appended).
+_DATASETS_ROOT = os.environ.get("IDPRO_DATA_ROOT")
+OUTPUT_DIR = str(
+    Path(_DATASETS_ROOT) / "probe_data" / "benchmark"
+    if _DATASETS_ROOT
+    else Path(__file__).resolve().parent
+)
 FIELDS = "accession,protein_name,organism_name,sequence,cc_function,ec,cc_catalytic_activity,keyword"
 
 # Diverse question templates for P2T format

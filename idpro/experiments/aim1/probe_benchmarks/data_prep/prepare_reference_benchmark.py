@@ -1,7 +1,7 @@
 """
 Prepare classification data + splits for the frozen-backbone probe experiment.
 
-Outputs (to idpro/data/probe/):
+Outputs (to PROBE_SPLITS_DIR = datasets/probe_data/probe_splits/):
   reference.jsonl    — 3,000 characterized proteins (stratified by EC class).
                        Used BOTH as probe training data AND as the RAG source.
   benchmark.jsonl    — 669 benchmark proteins (held-out test set).
@@ -11,7 +11,7 @@ Each row carries: accession, sequence, labels (is_enzyme, ec_l1, go_f_set, pfam_
 and the UniProt function description (for RAG context).
 
 Run:
-    python scripts/prepare_probe_data.py
+    python idpro/experiments/aim1/probe_benchmarks/data_prep/prepare_reference_benchmark.py
 """
 
 from __future__ import annotations
@@ -24,8 +24,8 @@ from pathlib import Path
 from typing import List, Optional
 
 import sys
-sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
-from idpro.paths import DATA_ROOT, AIM1_PROBE_DIR  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
+from idpro.paths import DATA_ROOT, PROBE_SPLITS_DIR  # noqa: E402
 
 DATA_SRC = (
     DATA_ROOT
@@ -46,7 +46,7 @@ BENCHMARK_SRC = (
 # the FULL metadata (sequence, EC, GO, Pfam) for the same proteins. Pull from
 # bacteria_all.jsonl by accession.
 
-OUT_DIR = AIM1_PROBE_DIR
+OUT_DIR = PROBE_SPLITS_DIR
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 N_REFERENCE = 3_000

@@ -28,67 +28,37 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.nn as nn
 from sklearn.metrics import roc_auc_score
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
 from idpro.model.idpro.conformal import SplitConformalPredictor  # noqa: E402
-from idpro.paths import AIM1_PROBE_DIR as DATA_DIR, FIGURES_DIR  # noqa: E402
+from idpro.paths import (  # noqa: E402
+    CONFORMAL_RESULTS_DIR,
+    EXTRACTED_EMBEDDINGS_DIR,
+    FIGURES_DIR,
+)
+from idpro.experiments.aim1.probe_benchmarks.utils import (  # noqa: E402
+    CLASS_NAMES,
+    VIEWS,
+    ec_label,
+    load_emb_cache,
+    predict,
+    stack_views,
+    train_probe,
+)
 
-EMB_DIR = DATA_DIR / "embeddings"
+EMB_DIR = EXTRACTED_EMBEDDINGS_DIR
 FIG_DIR = FIGURES_DIR
 FIG_DIR.mkdir(parents=True, exist_ok=True)
-
-VIEWS = ["view_a_prompteol_l48", "view_b_question_mean_l48", "view_c_eos_l64"]
-CLASS_NAMES = {
-    0: "Non-enzyme", 1: "Oxidoreductase", 2: "Transferase", 3: "Hydrolase",
-    4: "Lyase", 5: "Isomerase", 6: "Ligase", 7: "Translocase",
-}
-
-
-class LinearProbe(nn.Module):
-    def __init__(self, in_dim, out_dim):
-        super().__init__()
-        self.fc = nn.Linear(in_dim, out_dim)
-    def forward(self, x):
-        return self.fc(x)
-
-
-def stack_views(cache, accs, views):
-    return torch.cat([torch.stack([cache[a][v].float() for a in accs]) for v in views], dim=-1)
-
-
-def ec_label(cache, a):
-    v = cache[a]["labels"]["ec_l1"]
-    return 0 if v is None else int(v)
-
-
-def train_probe(x, y, device, epochs=100, lr=1e-3, wd=1e-4):
-    probe = LinearProbe(x.shape[1], 8).to(device)
-    opt = torch.optim.AdamW(probe.parameters(), lr=lr, weight_decay=wd)
-    loss_fn = nn.CrossEntropyLoss()
-    x = x.to(device); y = y.to(device)
-    bs = 64
-    for _ in range(epochs):
-        perm = torch.randperm(x.shape[0], device=device)
-        for s in range(0, x.shape[0], bs):
-            idx = perm[s:s+bs]
-            loss = loss_fn(probe(x[idx]), y[idx])
-            opt.zero_grad(); loss.backward(); opt.step()
-    return probe.eval()
-
-
-@torch.no_grad()
-def predict(probe, x, device):
-    return torch.softmax(probe(x.to(device)), dim=-1).cpu().numpy()
+CONFORMAL_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    ref_cache = torch.load(EMB_DIR / "reference_embeddings.pt", map_location="cpu", weights_only=False)
-    bench_cache = torch.load(EMB_DIR / "benchmark_embeddings.pt", map_location="cpu", weights_only=False)
+    ref_cache = load_emb_cache(EMB_DIR / "reference_embeddings.pt")
+    bench_cache = load_emb_cache(EMB_DIR / "benchmark_embeddings.pt")
     all_cache = {**ref_cache, **bench_cache}
     all_accs = list(ref_cache.keys()) + list(bench_cache.keys())
     all_labels = np.array([ec_label(ref_cache, a) for a in ref_cache.keys()] +
@@ -104,17 +74,18 @@ def main():
     cal_idx = perm[n_test:n_test + n_cal]
     tr_idx = perm[n_test + n_cal:]
 
-    x_tr = stack_views(all_cache, [all_accs[i] for i in tr_idx], VIEWS)
+    x_tr = stack_views(all_cache, [all_accs[i] for i in tr_idx], list(VIEWS))
     y_tr = torch.tensor(all_labels[tr_idx], dtype=torch.long)
-    x_cal = stack_views(all_cache, [all_accs[i] for i in cal_idx], VIEWS)
+    x_cal = stack_views(all_cache, [all_accs[i] for i in cal_idx], list(VIEWS))
     y_cal = all_labels[cal_idx]
-    x_te = stack_views(all_cache, [all_accs[i] for i in test_idx], VIEWS)
+    x_te = stack_views(all_cache, [all_accs[i] for i in test_idx], list(VIEWS))
     y_te = all_labels[test_idx]
     print(f"Train/calib/test = {len(tr_idx)}/{len(cal_idx)}/{len(test_idx)}")
 
-    probe = train_probe(x_tr, y_tr, device)
-    p_cal = predict(probe, x_cal, device)
-    p_te = predict(probe, x_te, device)
+    probe = train_probe(x_tr, y_tr, out_dim=8, task="ec_l1", kind="linear",
+                        device=device, epochs=100)
+    p_cal = predict(probe, x_cal, device, "ec_l1")
+    p_te = predict(probe, x_te, device, "ec_l1")
 
     # (A) Argmax accuracy overall
     argmax_te = p_te.argmax(axis=1)
@@ -265,7 +236,7 @@ def main():
     plt.close(fig)
 
     # Save numbers
-    out_json = EMB_DIR / "conformal_selective_curve.json"
+    out_json = CONFORMAL_RESULTS_DIR / "selective_curve.json"
     out_json.write_text(json.dumps({
         "test_n": int(len(y_te)),
         "argmax_accuracy_all": acc_all,

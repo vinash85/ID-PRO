@@ -10,11 +10,18 @@ Usage: python build_records.py
 """
 
 import json
+import os
 import re
 from pathlib import Path
 from collections import defaultdict
 
-BASE = Path("/data/asahu/projects/doe_genesis/preliminary_data/training_data")
+# Resolve the training-data root via env var (overrides) or the in-repo
+# datasets/training_data layout the script lives under.
+_DATASETS_ROOT = Path(os.environ.get(
+    "IDPRO_DATA_ROOT",
+    Path(__file__).resolve().parents[2],
+))
+BASE = _DATASETS_ROOT / "training_data"
 DOWNLOADS = BASE / "downloads"
 OUTPUT = BASE / "structured_records"
 

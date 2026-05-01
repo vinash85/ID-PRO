@@ -9,13 +9,11 @@ exists in the output dir. 404s are logged to misses.txt and not retried.
 Transient failures (timeouts, 5xx, 429) are retried with exponential backoff.
 
 Usage:
-  python download_alphafold.py \
-      --accessions /data/sposhiya/idpro_struct/preliminary_data/training_data/downloads/alphafold/accessions.txt \
-      --out-dir   /data/sposhiya/idpro_struct/preliminary_data/training_data/downloads/alphafold \
-      --log-dir   /data/sposhiya/idpro_struct/preliminary_data/training_data/downloads/alphafold_logs \
-      --concurrency 24
+  python download_alphafold.py --concurrency 24
 
-Defaults match those paths so a bare invocation works.
+Defaults are anchored at <IDPRO_DATA_ROOT or repo/datasets>/alphafold/, so a
+bare invocation works after `source env.sh`. Override with --accessions /
+--out-dir / --log-dir to point elsewhere.
 """
 
 import argparse
@@ -27,18 +25,23 @@ from pathlib import Path
 
 import aiohttp
 
-DEFAULT_BASE = Path("/data/sposhiya/idpro_struct/preliminary_data/training_data/downloads")
+# Resolve the alphafold root via env var (overrides) or the in-repo
+# datasets/alphafold layout the script lives under.
+DEFAULT_BASE = Path(os.environ.get(
+    "IDPRO_DATA_ROOT",
+    Path(__file__).resolve().parents[1],
+)) / "alphafold"
 URL_TEMPLATE = "https://alphafold.ebi.ac.uk/files/AF-{acc}-F1-model_v6.pdb"
 
 
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--accessions", type=Path,
-                   default=DEFAULT_BASE / "alphafold" / "accessions.txt")
+                   default=DEFAULT_BASE / "accessions.txt")
     p.add_argument("--out-dir", type=Path,
-                   default=DEFAULT_BASE / "alphafold")
+                   default=DEFAULT_BASE / "pdbs")
     p.add_argument("--log-dir", type=Path,
-                   default=DEFAULT_BASE / "alphafold_logs")
+                   default=DEFAULT_BASE / "logs")
     p.add_argument("--concurrency", type=int, default=24,
                    help="Max concurrent HTTP requests")
     p.add_argument("--max-retries", type=int, default=4,

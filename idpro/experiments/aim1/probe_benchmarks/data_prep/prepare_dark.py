@@ -6,10 +6,10 @@ many have WEAK labels from InterProScan automated calls: Pfam IDs, GO terms,
 sometimes partial function text. We use these as a noisy proxy for
 "the probe predicts something sensible."
 
-Outputs: idpro/data/probe/dark.jsonl (same schema as reference.jsonl)
+Outputs: PROBE_SPLITS_DIR/dark.jsonl (same schema as reference.jsonl)
 
 Run:
-    python scripts/prepare_dark_genome_probe.py
+    python idpro/experiments/aim1/probe_benchmarks/data_prep/prepare_dark.py
 """
 
 from __future__ import annotations
@@ -20,9 +20,9 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
 
-from idpro.paths import AIM1_PROBE_DIR as DATA_DIR, DARK_GENOME_META  # noqa: E402
+from idpro.paths import PROBE_SPLITS_DIR as DATA_DIR, DARK_GENOME_META  # noqa: E402
 
 META = DARK_GENOME_META
 

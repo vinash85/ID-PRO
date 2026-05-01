@@ -1,13 +1,12 @@
 """Fetch UniProt metadata (date_created, date_modified, Pfam IDs) for every
 accession in the 3,637-protein labeled pool (reference + benchmark).
 
-Output: idpro/data/probe/uniprot_metadata_cache.jsonl
+Output: $IDPRO_DATA_ROOT/datasets/probe_data/uniprot_metadata_cache.jsonl
   One JSON object per line with keys:
     accession, date_created, date_modified, pfam_ids (list of strings),
     taxonomy_id, organism_lineage (list)
 
-Usage:
-  python idpro/scripts/fetch_uniprot_metadata_for_e1.py
+Used by `shift_splits.py` (E1 conformal robustness experiment).
 """
 from __future__ import annotations
 
@@ -27,9 +26,9 @@ except ImportError:
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
-from idpro.paths import AIM1_PROBE_DIR as DATA_DIR  # noqa: E402
+from idpro.paths import PROBE_SPLITS_DIR, UNIPROT_METADATA_CACHE  # noqa: E402
 
-CACHE_PATH = DATA_DIR / "uniprot_metadata_cache.jsonl"
+CACHE_PATH = UNIPROT_METADATA_CACHE
 
 UNIPROT_URL = "https://rest.uniprot.org/uniprotkb/{acc}.json"
 
@@ -41,7 +40,7 @@ def load_accessions() -> list[str]:
     """Union of reference + benchmark accessions."""
     accs: set[str] = set()
     for name in ("reference.jsonl", "benchmark.jsonl"):
-        p = DATA_DIR / name
+        p = PROBE_SPLITS_DIR / name
         with p.open() as fh:
             for line in fh:
                 d = json.loads(line)

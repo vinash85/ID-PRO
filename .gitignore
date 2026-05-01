@@ -13,6 +13,9 @@
 # ── Local environment file (paths to data/runs/Qwen weights) ───────────────
 env.sh
 
+# ── Archived legacy scripts (P2T finetune/eval, probe runners) ─────────────
+archive/
+
 # ── Run outputs (checkpoints, training_results, probe outputs) ─────────────
 runs/
 
@@ -45,6 +48,10 @@ idpro/data/structure_manifest.jsonl
 idpro/data/feature_index.pkl
 idpro/data/rag_index*
 datasets/probe_data/rag/index*
+datasets/probe_data/extracted_embeddings/
+datasets/probe_data/probe_splits/
+datasets/probe_data/baseline_predictions/
+datasets/probe_data/uniprot_metadata_cache.jsonl
 
 # ── Generated reports / analysis output (regenerable) ───────────────────────
 reports/

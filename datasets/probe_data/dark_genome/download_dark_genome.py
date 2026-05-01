@@ -14,6 +14,7 @@ Output:
 
 import json
 import csv
+import os
 import time
 import random
 import requests
@@ -21,7 +22,14 @@ import sys
 from pathlib import Path
 from collections import defaultdict
 
-OUTPUT_DIR = Path("/data/asahu/projects/doe_genesis/preliminary_data/dark_genome")
+# Default to the in-repo datasets/probe_data/dark_genome dir the script lives
+# in; overridable via IDPRO_DATA_ROOT.
+_DATASETS_ROOT = os.environ.get("IDPRO_DATA_ROOT")
+OUTPUT_DIR = (
+    Path(_DATASETS_ROOT) / "probe_data" / "dark_genome"
+    if _DATASETS_ROOT
+    else Path(__file__).resolve().parent
+)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 UNIPROT_API = "https://rest.uniprot.org/uniprotkb/search"
