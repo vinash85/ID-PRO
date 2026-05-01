@@ -34,6 +34,13 @@ python idpro/experiments/aim1/probe_benchmarks/extract_embeddings.py views \
 python idpro/experiments/aim1/probe_benchmarks/extract_embeddings.py views \
     --which dark      --ckpt $IDPRO_RUNS_ROOT/checkpoints/stage4_step80000
 
+`--ckpt` accepts either a local checkpoint directory (with `idpro_state.pt`,
+`trainable.pt`, or `mp_rank_00_model_states.pt`) OR a Hugging Face repo id.
+To run the entire pipeline straight off the HF release:
+
+    python idpro/experiments/aim1/probe_benchmarks/extract_embeddings.py views \
+        --which reference --ckpt tumorailab/IDPRO-ESMC600M
+
 For the ESM3 structure ablation arms, add:
     --encoder esm3-1.4b --structure-track --structure-manifest <path.jsonl>
 """
@@ -55,6 +62,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 from idpro.config import IDProConfig  # noqa: E402
 from idpro.model import IDProModel  # noqa: E402
 from idpro.model.p2t.encoder import ProteinEncoder  # noqa: E402
+from idpro.model.release_loading import load_state_dict, resolve_release  # noqa: E402
 from idpro.paths import EXTRACTED_EMBEDDINGS_DIR, PROBE_SPLITS_DIR  # noqa: E402
 
 EXTRACTED_EMBEDDINGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -138,19 +146,32 @@ def _build_model(
     return model
 
 
-def _load_checkpoint(model: IDProModel, ckpt_path: Path, device: str) -> None:
-    tp = ckpt_path / "trainable.pt"
-    ds = ckpt_path / "mp_rank_00_model_states.pt"
-    if tp.exists():
-        print(f"Loading trainable weights from {tp}")
-        state = torch.load(tp, map_location=device, weights_only=False)
-    elif ds.exists():
-        print(f"Loading DeepSpeed ZeRO-2 weights from {ds}")
-        state = torch.load(ds, map_location="cpu", weights_only=False)["module"]
-    else:
-        raise FileNotFoundError(
-            f"No checkpoint at {ckpt_path} (looked for trainable.pt and mp_rank_00_model_states.pt)"
-        )
+def _load_checkpoint(
+    model: IDProModel,
+    ckpt_spec: str,
+    device: str,
+    *,
+    hf_revision: Optional[str] = None,
+) -> None:
+    """Load trainable weights from a local dir or a Hugging Face repo id.
+
+    ``ckpt_spec`` may be either an existing directory (containing one of
+    ``idpro_state.pt`` / ``trainable.pt`` / ``mp_rank_00_model_states.pt``) or
+    an HF repo id like ``"tumorailab/IDPRO-ESMC600M"``.
+    """
+    release_dir = resolve_release(ckpt_spec, revision=hf_revision)
+    print(f"Loading IDPro weights from {release_dir}")
+    state = load_state_dict(release_dir, map_location=device)
+
+    # Resize lm_head if the release was trained with a larger vocabulary.
+    head_key = "llm.lm_head.weight"
+    if head_key in state and model.llm is not None:
+        target_vocab = state[head_key].shape[0]
+        cur_vocab = model.llm.get_output_embeddings().weight.shape[0]
+        if cur_vocab != target_vocab:
+            print(f"  resizing token embeddings: {cur_vocab} -> {target_vocab}")
+            model.llm.resize_token_embeddings(target_vocab)
+
     loaded = 0
     model_state = dict(model.named_parameters())
     for name, tensor in state.items():
@@ -380,7 +401,7 @@ def cmd_views(args: argparse.Namespace) -> int:
         structure_track=args.structure_track,
         structure_manifest_path=args.structure_manifest,
     )
-    _load_checkpoint(model, args.ckpt, device)
+    _load_checkpoint(model, args.ckpt, device, hf_revision=args.hf_revision)
 
     save_every = 50
     t0 = time.time()
@@ -445,7 +466,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_v = sub.add_parser("views", help="Extract IDPro 3-view caches for one split")
     p_v.add_argument("--which", choices=["reference", "benchmark", "dark"], required=True)
-    p_v.add_argument("--ckpt", type=Path, required=True)
+    p_v.add_argument(
+        "--ckpt", type=str, required=True,
+        help="Local checkpoint dir OR Hugging Face repo id "
+             "(e.g. 'tumorailab/IDPRO-ESMC600M').",
+    )
+    p_v.add_argument(
+        "--hf-revision", default=None,
+        help="Optional HF revision/commit/tag (only used when --ckpt is a repo id).",
+    )
     p_v.add_argument("--device", default="cuda")
     p_v.add_argument("--limit", type=int, default=None)
     p_v.add_argument("--rag-k", type=int, default=RAG_K_DEFAULT)

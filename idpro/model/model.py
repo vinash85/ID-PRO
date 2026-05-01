@@ -541,3 +541,132 @@ class IDProModel(nn.Module):
             self.llm = PeftModel.from_pretrained(self.llm, lora_path)
 
         print(f"[Checkpoint] Loaded from {path}")
+
+    # ── Hugging Face release loader ───────────────────────────────────
+    #
+    # Release layout (produced by tools/hf/export_for_hf.py):
+    #   release/
+    #     idpro_state.pt   trainable-only state dict (bridge + evidence
+    #                       heads + protein_position + lm_head)
+    #     config.json      serialized IDProConfig (HF-friendly: encoder /
+    #                       LLM names are HF repo ids, no local paths)
+    #     README.md        model card
+    #
+    # The Stage-4 IDPro release is a *bridge + lm_head* checkpoint — there
+    # is no PEFT LoRA adapter (Stage 4 trained `lm_head` directly). The
+    # base LLM and ESM C encoder are pulled from their public HF repos.
+
+    @classmethod
+    def from_pretrained(
+        cls,
+        repo_id_or_path: str,
+        device: str = "cuda",
+        dtype=torch.bfloat16,
+        llm_name: Optional[str] = None,
+        revision: Optional[str] = None,
+    ) -> "IDProModel":
+        """Load an IDPro model from a Hugging Face repo or local release dir.
+
+        Args:
+            repo_id_or_path: HF repo id (``"user/idpro-esmc-stage4"``) or a
+                local path to a release directory.
+            device: target device for the LLM and bridge weights.
+            dtype: bridge / LLM dtype (bf16 by default).
+            llm_name: optional override for the base LLM (HF id or local
+                path). Useful if the host has a local Qwen snapshot.
+            revision: HF revision (commit / tag) when loading from a repo.
+        """
+        import json
+        import os
+        from dataclasses import fields as dc_fields
+
+        from ..config import (
+            AdaptorConfig,
+            EncoderConfig,
+            IDProConfig,
+            LLMConfig,
+            ProjectorConfig,
+            RAGConfig,
+            TrainingConfig,
+        )
+
+        # Resolve to a local directory.
+        if os.path.isdir(repo_id_or_path):
+            local_dir = repo_id_or_path
+        else:
+            from huggingface_hub import snapshot_download
+            local_dir = snapshot_download(repo_id=repo_id_or_path, revision=revision)
+
+        with open(os.path.join(local_dir, "config.json")) as f:
+            cfg_json = json.load(f)
+
+        def _build(dc, blob):
+            keep = {f.name for f in dc_fields(dc)}
+            return dc(**{k: v for k, v in blob.items() if k in keep})
+
+        config = IDProConfig(
+            encoder=_build(EncoderConfig, cfg_json.get("encoder", {})),
+            adaptor=_build(AdaptorConfig, cfg_json.get("adaptor", {})),
+            projector=_build(ProjectorConfig, cfg_json.get("projector", {})),
+            llm=_build(LLMConfig, cfg_json.get("llm", {})),
+            rag=_build(RAGConfig, cfg_json.get("rag", {})),
+            training=_build(TrainingConfig, cfg_json.get("training", {})),
+        )
+        for tok in ("prot_start_token", "prot_end_token",
+                    "rag_start_token", "rag_end_token"):
+            if tok in cfg_json:
+                setattr(config, tok, cfg_json[tok])
+        if llm_name is not None:
+            config.llm.name = llm_name
+
+        config.encoder.resolve()
+        config.llm.resolve()
+        config.validate()
+
+        model = cls(config)
+        model.encoder.load(device)
+
+        model.load_llm(device=device, dtype=dtype)
+
+        bridge_dtype = next(model.adaptor.parameters()).dtype
+        for sub in (model.adaptor, model.projector,
+                    model.evidence_head_pre, model.evidence_head_post,
+                    model.protein_position):
+            sub.to(device=device, dtype=dtype)
+        model.protein_modality_embed.data = model.protein_modality_embed.data.to(device=device, dtype=dtype)
+        model.prot_end_embed.data = model.prot_end_embed.data.to(device=device, dtype=dtype)
+
+        state_path = os.path.join(local_dir, "idpro_state.pt")
+        state = torch.load(state_path, map_location=device, weights_only=False)
+
+        # `lm_head.weight` row count can exceed Qwen base + 4 IDPro tokens
+        # if the original training run added more tokens. Resize to match.
+        head_key = "llm.lm_head.weight"
+        if head_key in state:
+            target_vocab = state[head_key].shape[0]
+            if model.llm.get_output_embeddings().weight.shape[0] != target_vocab:
+                model.llm.resize_token_embeddings(target_vocab)
+
+        named = dict(model.named_parameters())
+        loaded, skipped = 0, []
+        for name, tensor in state.items():
+            if name in named:
+                named[name].data.copy_(tensor.to(device=device, dtype=named[name].dtype))
+                loaded += 1
+            else:
+                skipped.append(name)
+        if skipped:
+            print(f"[from_pretrained] {len(skipped)} keys not found on model "
+                  f"(first 3: {skipped[:3]})")
+        print(f"[from_pretrained] Loaded {loaded}/{len(state)} params "
+              f"from {local_dir}")
+
+        # Optional PEFT adapter (forward-compat for future LoRA releases).
+        lora_dir = os.path.join(local_dir, "llm_lora")
+        if os.path.isdir(lora_dir):
+            from peft import PeftModel
+            model.llm = PeftModel.from_pretrained(model.llm, lora_dir)
+            print(f"[from_pretrained] Applied LoRA adapter from {lora_dir}")
+
+        model.eval()
+        return model

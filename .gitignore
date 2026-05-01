@@ -74,6 +74,13 @@ docs/
 # Folders that contain only markdown (now empty after the *.md rule)
 plans/
 
+# ── Local-only HF release tooling (export + push) ──────────────────────────
+# The exporter and uploader live here so HF tokens and packaged checkpoints
+# never enter git. The downstream `IDProModel.from_pretrained` loader IS
+# committed (it's how others consume the published artifact).
+tools/hf/
+release/
+
 # ── Local agent / IDE state ─────────────────────────────────────────────────
 .claude/
 .vscode/
