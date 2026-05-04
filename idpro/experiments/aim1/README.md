@@ -32,7 +32,7 @@ aim1/
 
   reports/                      Figure / report builders.
     make_spider_plot_v2.py      Strict-keyword EC spider on benchmark + dark.
-    build_contrast_report.py    S0 vs S1 dark-protein examples (ESM3 ablation).
+    build_contrast_report.py    Dark-protein contrast examples.
     analyze_f1_meaning.py       What does token-F1 mean? — calibration anchor.
     compose_figure1.py          Fig 1 composite (a + b + c + d).
     compose_figures.py          Fig 1 (spider) + Fig 2 (composite) renderers.
@@ -77,7 +77,7 @@ source env.sh
 python idpro/experiments/aim1/probe_benchmarks/data_prep/prepare_reference_benchmark.py
 python idpro/experiments/aim1/probe_benchmarks/data_prep/prepare_dark.py
 
-# 2. Embedding caches (per arm if running the ESM3 ablation)
+# 2. Embedding caches
 python idpro/experiments/aim1/probe_benchmarks/extract_embeddings.py rag-index --include benchmark
 for split in reference benchmark dark; do
   python idpro/experiments/aim1/probe_benchmarks/extract_embeddings.py views \

@@ -56,17 +56,17 @@ idpro_struct/
 │   │
 │   ├── experiments/              # Eval scripts, organised by paper aim
 │   │   └── aim1/
-│   │       ├── a_benchmarks/     # Accuracy / temporal / orphan / scaling
-│   │       │   ├── extract_probe_embeddings.py
-│   │       │   ├── evaluate_ec_classifier.py     → EC-L1 macro-AUC
-│   │       │   ├── evaluate_probe_on_dark.py     → dark-genome eval
-│   │       │   ├── idpro_vs_interlabelgo.py      → head-to-head
-│   │       │   ├── train_probe_variants.py       → scaling curve
-│   │       │   └── …
-│   │       ├── b_trust/          # Calibration + audit
-│   │       │   ├── conformal_selective_curve.py
-│   │       │   ├── conformal_on_classifier.py
-│   │       │   └── run_e1_conformal_splits.py
+│   │       ├── probe_benchmarks/ # Accuracy / temporal / orphan / scaling
+│   │       │   ├── data_prep/    # Build splits + label vocabs
+│   │       │   ├── extract_embeddings.py         → 3-view caches + RAG index
+│   │       │   ├── run_probe.py                  → probe training + eval
+│   │       │   ├── run_baselines.py              → baseline EC-prediction
+│   │       │   └── utils/        # Shared probe heads, scoring, loaders
+│   │       ├── conformal/        # Calibration + audit
+│   │       │   ├── selective_curve.py
+│   │       │   ├── classifier_conformal.py
+│   │       │   ├── shift_splits.py
+│   │       │   └── fetch_uniprot_metadata.py
 │   │       └── reports/          # Figure / report builders
 │   │
 │   ├── metrics/                  # Pure metric primitives (placeholder)
@@ -126,19 +126,24 @@ CLI flags override the defaults in `idpro/paths.py` (e.g. `--qa-dir`,
 ## Evaluation
 
 ```bash
-# Extract probe embeddings (uses Stage-4 checkpoint + frozen encoder)
-python idpro/experiments/aim1/a_benchmarks/extract_probe_embeddings.py \
-    --ckpt $CKPT --which reference --encoder esmc-600m
+# Extract embeddings (uses Stage-4 checkpoint + frozen encoder)
+python idpro/experiments/aim1/probe_benchmarks/extract_embeddings.py \
+    rag-index --include benchmark
+python idpro/experiments/aim1/probe_benchmarks/extract_embeddings.py \
+    views --which reference --ckpt $IDPRO_RUNS_ROOT/checkpoints/stage4_step80000
 
 # Downstream probes
-python idpro/experiments/aim1/a_benchmarks/evaluate_ec_classifier.py
-python idpro/experiments/aim1/a_benchmarks/evaluate_probe_on_dark.py
-python idpro/experiments/aim1/a_benchmarks/idpro_vs_interlabelgo.py
+python idpro/experiments/aim1/probe_benchmarks/run_probe.py cv5fold
+python idpro/experiments/aim1/probe_benchmarks/run_probe.py dark
+python idpro/experiments/aim1/probe_benchmarks/run_probe.py zeroshot637
+
+# Baselines
+python idpro/experiments/aim1/probe_benchmarks/run_baselines.py mmseqs --splits benchmark dark
 
 # Calibration (split-conformal)
-python idpro/experiments/aim1/b_trust/conformal_selective_curve.py
-python idpro/experiments/aim1/b_trust/conformal_on_classifier.py
-python idpro/experiments/aim1/b_trust/run_e1_conformal_splits.py
+python idpro/experiments/aim1/conformal/selective_curve.py
+python idpro/experiments/aim1/conformal/classifier_conformal.py
+python idpro/experiments/aim1/conformal/shift_splits.py
 ```
 
 ## Encoder swap
