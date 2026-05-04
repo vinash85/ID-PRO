@@ -54,7 +54,7 @@ datasets/probe_data/baseline_predictions/
 datasets/probe_data/uniprot_metadata_cache.jsonl
 
 # ── Generated reports / analysis output (regenerable) ───────────────────────
-reports/
+/reports/
 
 # ── Experiments not yet implemented ────────────────────────────────────────
 idpro/experiments/aim2/
